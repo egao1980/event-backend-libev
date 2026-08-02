@@ -33,7 +33,8 @@
   ((ptr :initarg :ptr :reader libev-loop-ptr)
    (async :initarg :async :reader libev-loop-async)
    (wake-queue :initform nil :accessor libev-loop-wake-queue)
-   (closed :initform nil :accessor libev-loop-closed-p)))
+   (closed :initform nil :accessor libev-loop-closed-p)
+   (running :initform nil :accessor libev-loop-running-p)))
 
 (defclass libev-handle (event-handle)
   ((ptr :initarg :ptr :reader libev-handle-ptr)
@@ -90,14 +91,15 @@
               (warn "wake callback error: ~A" e))))))))
 
 (defcallback %ev-io-cb :void ((loop :pointer) (w :pointer) (revents :int))
-  (declare (ignore loop revents))
+  (declare (ignore loop))
   (let ((entry (%lookup w)))
     (when entry
       (let* ((data (cdr entry))
              (fn (getf data :fn))
-             (eh (getf data :event-handle)))
+             (eh (getf data :event-handle))
+             (status (if (logtest revents +ev-error+) :error :ok)))
         (when (and fn eh (not (event-handle-canceled-p eh)))
-          (funcall fn :ok))))))
+          (funcall fn status))))))
 
 (defmethod make-event-loop ((backend libev-backend) &key)
   (load-libev)
@@ -122,10 +124,12 @@
   (%ensure-loop-open loop)
   (with-event-loop-var (loop)
     (let ((loop-ptr (libev-loop-ptr loop)))
+      (setf (libev-loop-running-p loop) t)
       (unless stop-when-idle
         (ev-ref loop-ptr))
       (unwind-protect
            (ev-run loop-ptr 0)
+        (setf (libev-loop-running-p loop) nil)
         (unless stop-when-idle
           (ev-unref loop-ptr)))))
   loop)
@@ -194,6 +198,11 @@
   (wake (event-loop-backend loop) loop)
   loop)
 
+(defun %wait-loop-stopped (loop)
+  (loop while (libev-loop-running-p loop)
+        do #+sbcl (sb-thread:thread-yield)
+           #-sbcl (sleep 0.001)))
+
 (defun close-loop (loop)
   (unless (libev-loop-closed-p loop)
     (let ((backend (event-loop-backend loop))
@@ -209,6 +218,9 @@
                *ev-callbacks*)
       (dolist (h handles)
         (cancel backend h))
+      (ev-break ptr +evbreak-all+)
+      (ignore-errors (ev-async-send ptr async))
+      (%wait-loop-stopped loop)
       (ignore-errors (ev-async-stop ptr async))
       (%unregister async)
       (foreign-free async)

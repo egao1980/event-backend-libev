@@ -10,7 +10,8 @@
 (cenum (ev-event)
   ((:read "EV_READ"))
   ((:write "EV_WRITE"))
-  ((:iofdset "EV__IOFDSET")))
+  ((:iofdset "EV__IOFDSET"))
+  ((:error "EV_ERROR")))
 
 (cenum (ev-run-flags)
   ((:nowait "EVRUN_NOWAIT"))

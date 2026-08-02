@@ -5,6 +5,7 @@
 (defparameter +ev-read+ (foreign-enum-value 'ev-event :read))
 (defparameter +ev-write+ (foreign-enum-value 'ev-event :write))
 (defparameter +ev-iofdset+ (foreign-enum-value 'ev-event :iofdset))
+(defparameter +ev-error+ (foreign-enum-value 'ev-event :error))
 (defparameter +evrun-nowait+ (foreign-enum-value 'ev-run-flags :nowait))
 (defparameter +evrun-once+ (foreign-enum-value 'ev-run-flags :once))
 (defparameter +evbreak-one+ (foreign-enum-value 'ev-break-how :one))
