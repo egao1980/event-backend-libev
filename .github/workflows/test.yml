@@ -1,0 +1,71 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Unix only. event-protocol via checkout + qlfile `local` (no qlot `github`).
+concurrency:
+  group: event-backend-libev-test-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SBCL_VERSION: 2.4.11
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout event-protocol
+        uses: actions/checkout@v4
+        with:
+          repository: egao1980/event-protocol
+          path: event-protocol
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install libev (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libev-dev build-essential pkg-config
+
+      - name: Install libev (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install libev
+          echo "HOMEBREW_PREFIX=$(brew --prefix)" >> "$GITHUB_ENV"
+
+      - name: Install Roswell
+        shell: bash
+        run: |
+          curl -sL https://raw.githubusercontent.com/roswell/roswell/master/scripts/install-for-ci.sh | bash
+          echo "$HOME/.roswell/bin" >> "$GITHUB_PATH"
+
+      - name: Install SBCL
+        shell: bash
+        run: |
+          ros install "sbcl-bin/$SBCL_VERSION"
+          ros use "sbcl-bin/$SBCL_VERSION"
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          ros install qlot
+          qlot install
+
+      - name: Conformance × libev
+        shell: bash
+        run: |
+          export HOMEBREW_PREFIX="${HOMEBREW_PREFIX:-/opt/homebrew}"
+          qlot exec ros -e '(asdf:test-system "event-backend-libev")'
