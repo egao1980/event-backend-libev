@@ -34,7 +34,8 @@
    (async :initarg :async :reader libev-loop-async)
    (wake-queue :initform nil :accessor libev-loop-wake-queue)
    (closed :initform nil :accessor libev-loop-closed-p)
-   (running :initform nil :accessor libev-loop-running-p)))
+   (running :initform nil :accessor libev-loop-running-p)
+   (closing :initform nil :accessor libev-loop-closing-p)))
 
 (defclass libev-handle (event-handle)
   ((ptr :initarg :ptr :reader libev-handle-ptr)
@@ -130,6 +131,8 @@
       (unwind-protect
            (ev-run loop-ptr 0)
         (setf (libev-loop-running-p loop) nil)
+        (when (libev-loop-closing-p loop)
+          (%finalize-close-loop loop))
         (unless stop-when-idle
           (ev-unref loop-ptr)))))
   loop)
@@ -203,6 +206,18 @@
         do #+sbcl (sb-thread:thread-yield)
            #-sbcl (sleep 0.001)))
 
+(defun %finalize-close-loop (loop)
+  (unless (libev-loop-closed-p loop)
+    (let ((async (libev-loop-async loop))
+          (ptr (libev-loop-ptr loop)))
+      (ignore-errors (ev-async-stop ptr async))
+      (%unregister async)
+      (foreign-free async)
+      (ev-loop-destroy ptr)
+      (setf (libev-loop-closed-p loop) t
+            (libev-loop-closing-p loop) nil)))
+  loop)
+
 (defun close-loop (loop)
   (unless (libev-loop-closed-p loop)
     (let ((backend (event-loop-backend loop))
@@ -220,10 +235,8 @@
         (cancel backend h))
       (ev-break ptr +evbreak-all+)
       (ignore-errors (ev-async-send ptr async))
-      (%wait-loop-stopped loop)
-      (ignore-errors (ev-async-stop ptr async))
-      (%unregister async)
-      (foreign-free async)
-      (ev-loop-destroy ptr)
-      (setf (libev-loop-closed-p loop) t)))
+      (setf (libev-loop-closing-p loop) t)
+      (unless (and (libev-loop-running-p loop) (eq loop *event-loop*))
+        (%wait-loop-stopped loop)
+        (%finalize-close-loop loop))))
   loop)
