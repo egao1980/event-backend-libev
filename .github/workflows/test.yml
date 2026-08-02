@@ -1,0 +1,84 @@
+name: Test
+
+on:
+  push:
+    branches: [main, "cursor/**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+    env:
+      LISP: sbcl-bin
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout event-protocol
+        uses: actions/checkout@v4
+        with:
+          repository: egao1980/event-protocol
+          path: event-protocol
+
+      - name: Install libev (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libev-dev build-essential
+
+      - name: Install libev (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install libev
+          echo "HOMEBREW_PREFIX=$(brew --prefix)" >> "$GITHUB_ENV"
+
+      - name: Setup Common Lisp (Roswell)
+        uses: 40ants/setup-lisp@v4
+        with:
+          roswell-version: latest
+
+      - name: Install Quicklisp deps
+        run: |
+          ros install cffi
+          ros install rove
+
+      - name: Conformance × libev
+        run: |
+          export HOMEBREW_PREFIX="${HOMEBREW_PREFIX:-/opt/homebrew}"
+          ros -e '(asdf:load-asd #p"event-protocol/event-protocol.asd")' \
+              -e '(asdf:load-asd #p"event-backend-libev.asd")' \
+              -e '(asdf:test-system "event-backend-libev")' \
+              -q
+
+  test-linux-image:
+    runs-on: ubuntu-latest
+    container:
+      image: fukamachi/sbcl:latest-ubuntu
+    steps:
+      - name: Install natives
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            libev-dev build-essential git ca-certificates
+          sbcl --non-interactive --eval '(ql:quickload (:cffi :rove) :silent t)' --quit
+
+      - uses: actions/checkout@v4
+
+      - name: Checkout event-protocol
+        uses: actions/checkout@v4
+        with:
+          repository: egao1980/event-protocol
+          path: event-protocol
+
+      - name: Test
+        run: |
+          sbcl --non-interactive \
+            --eval '(asdf:load-asd #p"event-protocol/event-protocol.asd")' \
+            --eval '(asdf:load-asd #p"event-backend-libev.asd")' \
+            --eval '(asdf:test-system "event-backend-libev")'
