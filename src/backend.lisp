@@ -220,6 +220,13 @@
 
 (defun close-loop (loop)
   (unless (libev-loop-closed-p loop)
+    (when (and (libev-loop-running-p loop) (not (eq loop *event-loop*)))
+      (wake-call loop (lambda () (close-loop loop)))
+      (%wait-loop-stopped loop)
+      (loop while (not (libev-loop-closed-p loop))
+            do #+sbcl (sb-thread:thread-yield)
+               #-sbcl (sleep 0.001))
+      (return-from close-loop loop))
     (let ((backend (event-loop-backend loop))
           (async (libev-loop-async loop))
           (ptr (libev-loop-ptr loop))
