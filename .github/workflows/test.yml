@@ -23,6 +23,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Checkout event-protocol
+        uses: actions/checkout@v4
+        with:
+          repository: egao1980/event-protocol
+          path: event-protocol
+
       - name: Install libev (Linux)
         if: runner.os == 'Linux'
         run: |
