@@ -19,6 +19,31 @@
     (error 'event-loop-error :message "event loop is closed"))
   loop)
 
+;;; sb-ext:atomic-swap / atomic-exchange are missing on several SBCL builds;
+;;; compare-and-swap is the portable primitive for cons-cell places.
+(defun %steal-wake-queue (loop)
+  "Atomically take and clear LOOP's wake-queue (newest-first)."
+  #+sbcl
+  (return-from %steal-wake-queue
+    (loop for old = (slot-value loop 'wake-queue)
+          when (eq (sb-ext:compare-and-swap
+                    (slot-value loop 'wake-queue) old nil)
+                   old)
+            return old))
+  (shiftf (libev-loop-wake-queue loop) nil))
+
+(defun %push-wake-queue (loop function)
+  "Atomically push FUNCTION onto LOOP's wake-queue."
+  #+sbcl
+  (return-from %push-wake-queue
+    (loop for old = (slot-value loop 'wake-queue)
+          when (eq (sb-ext:compare-and-swap
+                    (slot-value loop 'wake-queue)
+                    old (cons function old))
+                   old)
+            return function))
+  (push function (libev-loop-wake-queue loop)))
+
 (defclass libev-backend (event-backend)
   ()
   (:default-initargs :name "libev"))
@@ -58,7 +83,7 @@
             (foreign-free w))
           (when eh
             (setf (event-handle-canceled-p eh) t
-                  (slot-value eh 'ptr) (cffi:null-pointer)))))))
+                  (slot-value eh 'ptr) (cffi:null-pointer))))))))
 
 (defcallback %ev-idle-cb :void ((loop :pointer) (w :pointer) (revents :int))
   (declare (ignore loop revents))
@@ -77,16 +102,14 @@
             (foreign-free w))
           (when eh
             (setf (event-handle-canceled-p eh) t
-                  (slot-value eh 'ptr) (cffi:null-pointer)))))))
+                  (slot-value eh 'ptr) (cffi:null-pointer))))))))
 
 (defcallback %ev-async-cb :void ((loop :pointer) (w :pointer) (revents :int))
   (declare (ignore loop revents))
   (let ((entry (%lookup w)))
     (when entry
       (let ((ev-loop (getf (cdr entry) :loop)))
-        (dolist (fn (nreverse
-                     #+sbcl (sb-ext:atomic-swap nil (slot-value ev-loop 'wake-queue))
-                     #-sbcl (shiftf (libev-loop-wake-queue ev-loop) nil)))
+        (dolist (fn (nreverse (%steal-wake-queue ev-loop)))
           (handler-case (funcall fn)
             (error (e)
               (warn "wake callback error: ~A" e))))))))
@@ -196,8 +219,7 @@
   loop)
 
 (defun wake-call (loop function)
-  #+sbcl (sb-ext:atomic-push function (slot-value loop 'wake-queue))
-  #-sbcl (push function (libev-loop-wake-queue loop))
+  (%push-wake-queue loop function)
   (wake (event-loop-backend loop) loop)
   loop)
 
