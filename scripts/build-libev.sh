@@ -48,10 +48,19 @@ else
 fi
 
 mkdir -p "$OUT"
+# Only wildcard globs — literals like libev.dylib ignore nullglob and fail on Linux.
 shopt -s nullglob
-for f in "$BUILD/prefix/lib"/libev.so* "$BUILD/prefix/lib"/libev.*.dylib "$BUILD/prefix/lib"/libev.dylib; do
-  cp -a "$f" "$OUT/"
-done
+libs=(
+  "$BUILD/prefix/lib"/libev.so*
+  "$BUILD/prefix/lib"/libev*.dylib
+  "$BUILD/prefix/lib64"/libev.so*
+)
+if ((${#libs[@]} == 0)); then
+  echo "libev shared library not found under $BUILD/prefix/lib" >&2
+  ls -la "$BUILD/prefix/lib" "$BUILD/prefix/lib64" 2>/dev/null || true
+  exit 1
+fi
+cp -a "${libs[@]}" "$OUT/"
 export EVENT_PROTOCOL_EV_INCLUDE="$BUILD/prefix/include"
 echo "$EVENT_PROTOCOL_EV_INCLUDE" > "$ROOT/build/event-protocol-ev-include"
 echo "EVENT_PROTOCOL_EV_INCLUDE=$EVENT_PROTOCOL_EV_INCLUDE"

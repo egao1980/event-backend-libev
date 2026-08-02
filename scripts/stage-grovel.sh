@@ -48,22 +48,33 @@ if [[ -z "${HOMEBREW_PREFIX}" && -d /opt/homebrew ]]; then
   export HOMEBREW_PREFIX=/opt/homebrew
 fi
 
+lisp_path() {
+  local p="$1"
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$p"
+  else
+    printf '%s' "$p"
+  fi
+}
+LISP_ROOT="$(lisp_path "$ROOT")"
+LISP_PROTO="$(lisp_path "$PROTO")"
+
 run_lisp() {
   if [[ -d "$ROOT/.qlot" ]] && command -v qlot >/dev/null 2>&1; then
     qlot exec ros \
-      -e "(asdf:load-asd #p\"${PROTO}/event-protocol.asd\")" \
-      -e "(asdf:load-asd #p\"${ROOT}/${SYS}.asd\")" \
+      -e "(asdf:load-asd #p\"${LISP_PROTO}/event-protocol.asd\")" \
+      -e "(asdf:load-asd #p\"${LISP_ROOT}/${SYS}.asd\")" \
       -e "(asdf:load-system \"${SYS}\")" \
       -e '(format t "LOADED~%")' -q
   elif command -v ros >/dev/null 2>&1; then
-    ros -e "(asdf:load-asd #p\"${PROTO}/event-protocol.asd\")" \
-        -e "(asdf:load-asd #p\"${ROOT}/${SYS}.asd\")" \
+    ros -e "(asdf:load-asd #p\"${LISP_PROTO}/event-protocol.asd\")" \
+        -e "(asdf:load-asd #p\"${LISP_ROOT}/${SYS}.asd\")" \
         -e "(asdf:load-system \"${SYS}\")" \
         -e '(format t "LOADED~%")' -q
   else
     sbcl --non-interactive \
-      --eval "(asdf:load-asd #p\"${PROTO}/event-protocol.asd\")" \
-      --eval "(asdf:load-asd #p\"${ROOT}/${SYS}.asd\")" \
+      --eval "(asdf:load-asd #p\"${LISP_PROTO}/event-protocol.asd\")" \
+      --eval "(asdf:load-asd #p\"${LISP_ROOT}/${SYS}.asd\")" \
       --eval "(asdf:load-system \"${SYS}\")" \
       --eval '(format t "LOADED~%")'
   fi
