@@ -47,7 +47,10 @@
           (funcall fn))
         (when (%lookup w)
           (%unregister w)
-          (foreign-free w)))))
+          (foreign-free w))
+        (when eh
+          (setf (event-handle-canceled-p eh) t
+                (slot-value eh 'ptr) (cffi:null-pointer))))))
 
 (defcallback %ev-idle-cb :void ((loop :pointer) (w :pointer) (revents :int))
   (declare (ignore loop revents))
@@ -62,7 +65,10 @@
           (funcall fn))
         (when (%lookup w)
           (%unregister w)
-          (foreign-free w)))))
+          (foreign-free w))
+        (when eh
+          (setf (event-handle-canceled-p eh) t
+                (slot-value eh 'ptr) (cffi:null-pointer))))))
 
 (defcallback %ev-async-cb :void ((loop :pointer) (w :pointer) (revents :int))
   (declare (ignore loop revents))
@@ -104,11 +110,14 @@
 
 
 (defmethod run ((backend libev-backend) (loop libev-loop) &key (stop-when-idle t))
-  (declare (ignore stop-when-idle))
   (with-event-loop-var (loop)
-    ;; Flags 0 = run until no active watchers. Async keeps us alive unless we
-    ;; break; stop-when-idle consumers should cancel/stop. Use EVRUN default.
-    (ev-run (libev-loop-ptr loop) 0))
+    (let ((loop-ptr (libev-loop-ptr loop)))
+      (unless stop-when-idle
+        (ev-ref loop-ptr))
+      (unwind-protect
+           (ev-run loop-ptr 0)
+        (unless stop-when-idle
+          (ev-unref loop-ptr)))))
   loop)
 
 (defmethod stop ((backend libev-backend) (loop libev-loop))
