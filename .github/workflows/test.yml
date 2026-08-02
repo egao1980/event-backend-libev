@@ -2,14 +2,18 @@ name: Test
 
 on:
   push:
-    branches: [main, "cursor/**"]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
-# Same Lisp bootstrap as egao1980/cl-repository (.github/workflows/test.yml):
-# Roswell install-for-ci → pinned sbcl-bin → qlot → qlot exec ros.
+# Unix only. event-protocol via checkout + qlfile `local` (no qlot `github`).
+concurrency:
+  group: event-backend-libev-test-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   SBCL_VERSION: 2.4.11
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   test:
@@ -28,6 +32,7 @@ jobs:
         with:
           repository: egao1980/event-protocol
           path: event-protocol
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install libev (Linux)
         if: runner.os == 'Linux'
