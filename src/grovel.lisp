@@ -1,9 +1,16 @@
 ;;;; Grovelled against ev.h at overlay build. Unix-only (libev has no Windows).
+;;;;
+;;;; Note: this file is DSL for cffi-grovel — only grovel forms (or #. that
+;;;; expand to them). Plain LET/WHEN are unknown syntax.
 (in-package #:event-backend-libev)
 
-(cc-flags "-I/usr/local/include/"
-          "-I/opt/homebrew/include/"
-          "-I/usr/include/")
+#.(let* ((ev (uiop:getenv "EVENT_PROTOCOL_EV_INCLUDE"))
+         (extra (when (and ev (plusp (length ev)))
+                  (list (format nil "-I~A/" (string-right-trim "/" ev))))))
+    `(cc-flags ,@extra
+               "-I/usr/local/include/"
+               "-I/opt/homebrew/include/"
+               "-I/usr/include/"))
 
 (include "ev.h")
 

@@ -7,6 +7,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SYS="${1:?system name}"
 
+if [[ -z "${EVENT_PROTOCOL_EV_INCLUDE:-}" && -f "$ROOT/build/event-protocol-ev-include" ]]; then
+  export EVENT_PROTOCOL_EV_INCLUDE="$(cat "$ROOT/build/event-protocol-ev-include")"
+fi
+
 uname_s="$(uname -s)"
 uname_m="$(uname -m)"
 case "$uname_s" in
@@ -64,6 +68,17 @@ run_lisp() {
       --eval '(format t "LOADED~%")'
   fi
 }
+
+# Hide grovel-cache so ASD runs grovel instead of reusing stale cached output.
+if [[ -d "$ROOT/grovel-cache" ]]; then
+  mv "$ROOT/grovel-cache" "$ROOT/.grovel-cache.staging-hidden"
+  restore_grovel_cache() {
+    if [[ -d "$ROOT/.grovel-cache.staging-hidden" ]]; then
+      mv "$ROOT/.grovel-cache.staging-hidden" "$ROOT/grovel-cache"
+    fi
+  }
+  trap restore_grovel_cache EXIT
+fi
 
 LOG="$(mktemp)"
 

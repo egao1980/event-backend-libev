@@ -53,5 +53,6 @@ for f in "$BUILD/prefix/lib"/libev.so* "$BUILD/prefix/lib"/libev.*.dylib "$BUILD
   cp -a "$f" "$OUT/"
 done
 export EVENT_PROTOCOL_EV_INCLUDE="$BUILD/prefix/include"
+echo "$EVENT_PROTOCOL_EV_INCLUDE" > "$ROOT/build/event-protocol-ev-include"
 echo "EVENT_PROTOCOL_EV_INCLUDE=$EVENT_PROTOCOL_EV_INCLUDE"
 ls -la "$OUT"
