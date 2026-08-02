@@ -73,10 +73,16 @@ LOG="$(mktemp)"
 
 run_lisp >"$LOG" 2>&1 || { tail -80 "$LOG"; exit 1; }
 
-CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/common-lisp"
-PROCESSED="$(find "$CACHE" -path "*${SYS}*/grovel.processed-grovel-file" 2>/dev/null | xargs ls -t 2>/dev/null | head -1 || true)"
+CACHED_GROVEL="$ROOT/grovel-cache/grovel.cffi.lisp"
+PROCESSED=""
+if [[ -f "$CACHED_GROVEL" ]]; then
+  PROCESSED="$CACHED_GROVEL"
+else
+  CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/common-lisp"
+  PROCESSED="$(find "$CACHE" -path "*${SYS}*/grovel.processed-grovel-file" 2>/dev/null | xargs ls -t 2>/dev/null | head -1 || true)"
+fi
 if [[ -z "$PROCESSED" || ! -f "$PROCESSED" ]]; then
-  echo "could not locate grovel.processed-grovel-file; log:" >&2
+  echo "could not locate grovel output (grovel-cache/grovel.cffi.lisp or grovel.processed-grovel-file); log:" >&2
   tail -40 "$LOG" >&2
   exit 1
 fi
