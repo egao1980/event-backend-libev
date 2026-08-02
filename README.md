@@ -16,4 +16,17 @@ ros -e '(asdf:load-asd "event-backend-libev.asd")' \
     -e '(asdf:test-system "event-backend-libev")' -q
 ```
 
+## Overlay
+
+```bash
+./scripts/build-libev.sh
+./scripts/stage-grovel.sh event-backend-libev
+```
+
+Publish: Actions → **Publish OCI Package** (Unix matrix). Clean-container smoke:
+
+```bash
+./scripts/smoke-clean-container.sh 0.1.0
+```
+
 Tracking: [cl-stack#17](https://github.com/egao1980/cl-stack/issues/17).

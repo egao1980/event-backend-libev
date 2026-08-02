@@ -1,0 +1,131 @@
+name: Publish OCI Package
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version (default: from tag or 0.1.0)"
+        required: false
+        default: ""
+      registry:
+        description: "OCI registry"
+        required: false
+        default: "ghcr.io"
+
+env:
+  LIBEV_VERSION_DEFAULT: "4.33"
+  PACKAGE_VERSION_DEFAULT: "0.1.0"
+  SBCL_VERSION: 2.4.11
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            runner: ubuntu-latest
+          - os: linux
+            arch: arm64
+            runner: ubuntu-24.04-arm
+          - os: darwin
+            arch: arm64
+            runner: macos-latest
+
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout event-protocol
+        uses: actions/checkout@v4
+        with:
+          repository: egao1980/event-protocol
+          path: event-protocol
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install build deps (Linux)
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl autotools-dev automake libtool pkg-config
+
+      - name: Install Roswell
+        shell: bash
+        run: |
+          curl -sL https://raw.githubusercontent.com/roswell/roswell/master/scripts/install-for-ci.sh | bash
+          echo "$HOME/.roswell/bin" >> "$GITHUB_PATH"
+
+      - name: Install SBCL
+        shell: bash
+        run: |
+          ros install "sbcl-bin/$SBCL_VERSION"
+          ros use "sbcl-bin/$SBCL_VERSION"
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          ros install qlot
+          qlot install
+
+      - name: Build libev + stage grovel
+        env:
+          LIBEV_VERSION: ${{ env.LIBEV_VERSION_DEFAULT }}
+        run: |
+          chmod +x scripts/build-libev.sh scripts/stage-grovel.sh
+          ./scripts/build-libev.sh
+          # build-libev.sh prints EVENT_PROTOCOL_EV_INCLUDE=…
+          export EVENT_PROTOCOL_EV_INCLUDE="$(echo build/libev-*/prefix/include | awk '{print $1}')"
+          export HOMEBREW_PREFIX="${HOMEBREW_PREFIX:-/opt/homebrew}"
+          ./scripts/stage-grovel.sh event-backend-libev
+          mkdir -p native-bundle/lib native-bundle/grovel
+          cp -a "lib/${{ matrix.os }}-${{ matrix.arch }}/." native-bundle/lib/
+          cp -a "grovel/${{ matrix.os }}-${{ matrix.arch }}/." native-bundle/grovel/
+
+      - name: Upload native+grovel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.os }}-${{ matrix.arch }}
+          path: native-bundle/
+
+  resolve-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - id: ver
+        shell: bash
+        run: |
+          V="${{ inputs.version }}"
+          if [ -z "$V" ] && [[ "${GITHUB_REF_NAME}" == v* ]]; then
+            V="${GITHUB_REF_NAME#v}"
+          fi
+          [ -z "$V" ] && V="${PACKAGE_VERSION_DEFAULT}"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: [build, resolve-version]
+    permissions:
+      contents: read
+      packages: write
+    uses: egao1980/cl-repository/.github/workflows/publish-native-package.yml@main
+    with:
+      package-name: event-backend-libev
+      version: ${{ needs.resolve-version.outputs.version }}
+      registry: ${{ inputs.registry || 'ghcr.io' }}
+      description: libev backend + native/grovel overlays for event-protocol (Unix)
+      license: MIT
+      depends-on: cffi event-protocol
+      provides: event-backend-libev
+      cffi-libraries: libev
+      # Until grovel arrange lands on cl-repository main, point at the PR branch.
+      ci-ref: cursor/native-publish-grovel-977e
+      source-paths: |
+        event-backend-libev.asd
+        src
+        LICENSE
+        README.md
+    secrets: inherit

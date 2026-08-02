@@ -11,5 +11,7 @@
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (when (uiop:getenv "HOMEBREW_PREFIX")
-    (pushnew :homebrew *features*)))
+    (pushnew :homebrew *features*))
+  (when (uiop:getenv "EVENT_PROTOCOL_EV_INCLUDE")
+    (pushnew :event-protocol-ev-include *features*)))
 
