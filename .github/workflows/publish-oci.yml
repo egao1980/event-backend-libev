@@ -77,8 +77,6 @@ jobs:
         run: |
           chmod +x scripts/build-libev.sh scripts/stage-grovel.sh
           ./scripts/build-libev.sh
-          # build-libev.sh prints EVENT_PROTOCOL_EV_INCLUDE=…
-          export EVENT_PROTOCOL_EV_INCLUDE="$(echo build/libev-*/prefix/include | awk '{print $1}')"
           export HOMEBREW_PREFIX="${HOMEBREW_PREFIX:-/opt/homebrew}"
           ./scripts/stage-grovel.sh event-backend-libev
           mkdir -p native-bundle/lib native-bundle/grovel
