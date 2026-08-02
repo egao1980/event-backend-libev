@@ -14,6 +14,11 @@
 (defun %lookup (ptr)
   (gethash (%addr ptr) *ev-callbacks*))
 
+(defun %ensure-loop-open (loop)
+  (when (libev-loop-closed-p loop)
+    (error 'event-loop-error :message "event loop is closed"))
+  loop)
+
 (defclass libev-backend (event-backend)
   ()
   (:default-initargs :name "libev"))
@@ -43,14 +48,15 @@
              (eh (getf data :event-handle))
              (ev-loop (getf data :loop)))
         (ev-timer-stop (libev-loop-ptr ev-loop) w)
-        (when (and fn eh (not (event-handle-canceled-p eh)))
-          (funcall fn))
-        (when (%lookup w)
-          (%unregister w)
-          (foreign-free w))
-        (when eh
-          (setf (event-handle-canceled-p eh) t
-                (slot-value eh 'ptr) (cffi:null-pointer))))))
+        (unwind-protect
+             (when (and fn eh (not (event-handle-canceled-p eh)))
+               (funcall fn))
+          (when (%lookup w)
+            (%unregister w)
+            (foreign-free w))
+          (when eh
+            (setf (event-handle-canceled-p eh) t
+                  (slot-value eh 'ptr) (cffi:null-pointer)))))))
 
 (defcallback %ev-idle-cb :void ((loop :pointer) (w :pointer) (revents :int))
   (declare (ignore loop revents))
@@ -61,21 +67,24 @@
              (eh (getf data :event-handle))
              (ev-loop (getf data :loop)))
         (ev-idle-stop (libev-loop-ptr ev-loop) w)
-        (when (and fn eh (not (event-handle-canceled-p eh)))
-          (funcall fn))
-        (when (%lookup w)
-          (%unregister w)
-          (foreign-free w))
-        (when eh
-          (setf (event-handle-canceled-p eh) t
-                (slot-value eh 'ptr) (cffi:null-pointer))))))
+        (unwind-protect
+             (when (and fn eh (not (event-handle-canceled-p eh)))
+               (funcall fn))
+          (when (%lookup w)
+            (%unregister w)
+            (foreign-free w))
+          (when eh
+            (setf (event-handle-canceled-p eh) t
+                  (slot-value eh 'ptr) (cffi:null-pointer)))))))
 
 (defcallback %ev-async-cb :void ((loop :pointer) (w :pointer) (revents :int))
   (declare (ignore loop revents))
   (let ((entry (%lookup w)))
     (when entry
       (let ((ev-loop (getf (cdr entry) :loop)))
-        (dolist (fn (nreverse (shiftf (libev-loop-wake-queue ev-loop) nil)))
+        (dolist (fn (nreverse
+                     #+sbcl (sb-ext:atomic-swap nil (slot-value ev-loop 'wake-queue))
+                     #-sbcl (shiftf (libev-loop-wake-queue ev-loop) nil)))
           (handler-case (funcall fn)
             (error (e)
               (warn "wake callback error: ~A" e))))))))
@@ -110,6 +119,7 @@
 
 
 (defmethod run ((backend libev-backend) (loop libev-loop) &key (stop-when-idle t))
+  (%ensure-loop-open loop)
   (with-event-loop-var (loop)
     (let ((loop-ptr (libev-loop-ptr loop)))
       (unless stop-when-idle
@@ -121,10 +131,12 @@
   loop)
 
 (defmethod stop ((backend libev-backend) (loop libev-loop))
+  (%ensure-loop-open loop)
   (ev-break (libev-loop-ptr loop) +evbreak-one+)
   loop)
 
 (defmethod defer ((backend libev-backend) (loop libev-loop) function &key)
+  (%ensure-loop-open loop)
   (let* ((ptr (foreign-alloc :uint8 :count (foreign-type-size '(:struct ev-idle))))
          (eh (make-instance 'libev-handle :loop loop :ptr ptr :kind :idle)))
     (%ev-idle-init ptr (callback %ev-idle-cb))
@@ -133,6 +145,7 @@
     eh))
 
 (defmethod sleep* ((backend libev-backend) (loop libev-loop) seconds &key callback)
+  (%ensure-loop-open loop)
   (let* ((ptr (foreign-alloc :uint8 :count (foreign-type-size '(:struct ev-timer))))
          (eh (make-instance 'libev-handle :loop loop :ptr ptr :kind :timer))
          (fn (or callback (lambda ()))))
@@ -152,11 +165,13 @@
         (:idle (ignore-errors (ev-idle-stop (libev-loop-ptr loop) ptr)))
         (:io (ignore-errors (ev-io-stop (libev-loop-ptr loop) ptr))))
       (%unregister ptr)
-      (ignore-errors (foreign-free ptr))))
+      (ignore-errors (foreign-free ptr))
+      (setf (slot-value handle 'ptr) (cffi:null-pointer))))
   handle)
 
 
 (defmethod register-io ((backend libev-backend) (loop libev-loop) fd direction callback &key)
+  (%ensure-loop-open loop)
   (let* ((ptr (foreign-alloc :uint8 :count (foreign-type-size '(:struct ev-io))))
          (eh (make-instance 'libev-handle :loop loop :ptr ptr :kind :io))
          (events (ecase direction
@@ -169,6 +184,7 @@
     eh))
 
 (defmethod wake ((backend libev-backend) (loop libev-loop))
+  (%ensure-loop-open loop)
   (ev-async-send (libev-loop-ptr loop) (libev-loop-async loop))
   loop)
 
