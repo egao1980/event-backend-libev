@@ -11,9 +11,10 @@ PROTO="$CACHE/event-protocol"
 QL="$CACHE/quicklisp"
 
 mkdir -p "$CACHE/pull" "$CACHE/pkg"
-if [[ ! -f "$PKG/native/libev.so" && ! -f "$PKG/native/libev.so.4" ]]; then
+if [[ ! -f "$PKG/native/libev.so" && ! -f "$PKG/native/libev.so.4" ]] ||
+   [[ ! -f "$PKG/grovel-cache/grovel.cffi.lisp" ]]; then
   command -v oras >/dev/null || { echo "need oras" >&2; exit 1; }
-  rm -rf "$CACHE/pull"/* "$CACHE/pkg"/*
+  rm -rf "$CACHE/pull"/* "$PKG"
   oras pull --platform linux/amd64 "$IMAGE" -o "$CACHE/pull/"
   for f in "$CACHE/pull"/*.tar.gz; do tar -xzf "$f" -C "$CACHE/pkg/"; done
   if [[ ! -d "$PKG" ]]; then
