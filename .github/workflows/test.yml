@@ -6,13 +6,13 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Unix only. event-protocol via checkout + qlfile `local` (no qlot `github`).
 concurrency:
   group: event-backend-libev-test-${{ github.ref }}
   cancel-in-progress: true
 
 env:
   SBCL_VERSION: 2.4.11
+  CL_REPOSITORY_REF: "main"
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
@@ -27,12 +27,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Checkout event-protocol
+      - name: Checkout cl-repository
         uses: actions/checkout@v4
         with:
-          repository: egao1980/event-protocol
-          path: event-protocol
-          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: egao1980/cl-repository
+          ref: ${{ env.CL_REPOSITORY_REF }}
+          path: .cl-repository
 
       - name: Install libev (Linux)
         if: runner.os == 'Linux'
@@ -58,14 +58,14 @@ jobs:
           ros install "sbcl-bin/$SBCL_VERSION"
           ros use "sbcl-bin/$SBCL_VERSION"
 
-      - name: Install dependencies
+      - name: Bootstrap cl-repository-client (QL deps for client only)
         shell: bash
         run: |
-          ros install qlot
-          qlot install
+          ros -e '(ql:quickload (quote ("yason" "ironclad" "babel" "dexador" "quri" "chipz" "flexi-streams" "cl-ppcre" "cl-base64" "trivial-features" "salza2" "archive")) :silent t)' -q
 
-      - name: Conformance × libev
+      - name: cl-repo deps + conformance × libev
         shell: bash
         run: |
           export HOMEBREW_PREFIX="${HOMEBREW_PREFIX:-/opt/homebrew}"
-          qlot exec ros -e '(asdf:test-system "event-backend-libev")'
+          export CL_SOURCE_REGISTRY="$(pwd)//:$(pwd)/.cl-repository//:"
+          ros -l scripts/ci-test.lisp -q

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Load ASDF system (runs grovel) and copy processed grovel Lisp into grovel/<os>-<arch>/.
-# Usage: ./scripts/stage-grovel.sh event-backend-libuv
-# Looks for event-protocol at ./event-protocol/ or ../event-protocol/
+# Usage: ./scripts/stage-grovel.sh event-backend-libev
+# Expects event-protocol to be visible through CL_SOURCE_REGISTRY.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -28,21 +28,6 @@ esac
 DEST="$ROOT/grovel/${os}-${arch}"
 mkdir -p "$DEST"
 
-PROTO=""
-for cand in \
-  "$ROOT/event-protocol" \
-  "$ROOT/../event-protocol" \
-  "$ROOT/.qlot/local-projects/event-protocol"; do
-  if [[ -f "$cand/event-protocol.asd" ]]; then
-    PROTO="$(cd "$cand" && pwd)"
-    break
-  fi
-done
-if [[ -z "$PROTO" ]]; then
-  echo "event-protocol.asd not found (./event-protocol, ../event-protocol, or .qlot/local-projects/)" >&2
-  exit 1
-fi
-
 export HOMEBREW_PREFIX="${HOMEBREW_PREFIX:-}"
 if [[ -z "${HOMEBREW_PREFIX}" && -d /opt/homebrew ]]; then
   export HOMEBREW_PREFIX=/opt/homebrew
@@ -57,23 +42,16 @@ lisp_path() {
   fi
 }
 LISP_ROOT="$(lisp_path "$ROOT")"
-LISP_PROTO="$(lisp_path "$PROTO")"
+
+export CL_SOURCE_REGISTRY="$ROOT//:${CL_SOURCE_REGISTRY:-}"
 
 run_lisp() {
-  if [[ -d "$ROOT/.qlot" ]] && command -v qlot >/dev/null 2>&1; then
-    qlot exec ros \
-      -e "(asdf:load-asd #p\"${LISP_PROTO}/event-protocol.asd\")" \
-      -e "(asdf:load-asd #p\"${LISP_ROOT}/${SYS}.asd\")" \
-      -e "(asdf:load-system \"${SYS}\")" \
-      -e '(format t "LOADED~%")' -q
-  elif command -v ros >/dev/null 2>&1; then
-    ros -e "(asdf:load-asd #p\"${LISP_PROTO}/event-protocol.asd\")" \
-        -e "(asdf:load-asd #p\"${LISP_ROOT}/${SYS}.asd\")" \
+  if command -v ros >/dev/null 2>&1; then
+    ros -e "(asdf:load-asd #p\"${LISP_ROOT}/${SYS}.asd\")" \
         -e "(asdf:load-system \"${SYS}\")" \
         -e '(format t "LOADED~%")' -q
   else
     sbcl --non-interactive \
-      --eval "(asdf:load-asd #p\"${LISP_PROTO}/event-protocol.asd\")" \
       --eval "(asdf:load-asd #p\"${LISP_ROOT}/${SYS}.asd\")" \
       --eval "(asdf:load-system \"${SYS}\")" \
       --eval '(format t "LOADED~%")'
