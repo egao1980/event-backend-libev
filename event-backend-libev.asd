@@ -6,7 +6,7 @@
     nil)
 
 (defsystem "event-backend-libev"
-  :version "0.1.0"
+  :version "0.1.1"
   :description "libev backend for event-protocol (Unix second backend; no Windows)"
   :author "egao1980"
   :license "MIT"

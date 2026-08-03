@@ -161,8 +161,14 @@
   loop)
 
 (defmethod stop ((backend libev-backend) (loop libev-loop))
+  "Stop LOOP. Safe from any thread: ev_break is only valid inside ev_run
+callbacks, so off-loop calls are routed through the async wake watcher."
   (%ensure-loop-open loop)
-  (ev-break (libev-loop-ptr loop) +evbreak-one+)
+  (if (eq loop *event-loop*)
+      (ev-break (libev-loop-ptr loop) +evbreak-one+)
+      (wake-call loop
+                 (lambda ()
+                   (ev-break (libev-loop-ptr loop) +evbreak-one+))))
   loop)
 
 (defmethod defer ((backend libev-backend) (loop libev-loop) function &key)
