@@ -206,18 +206,49 @@ callbacks, so off-loop calls are routed through the async wake watcher."
   handle)
 
 
+(defun %ev-io-events (direction)
+  (ecase direction
+    (:none 0)
+    (:read +ev-read+)
+    (:write +ev-write+)
+    (:read-write (logior +ev-read+ +ev-write+))))
+
 (defmethod register-io ((backend libev-backend) (loop libev-loop) fd direction callback &key)
   (%ensure-loop-open loop)
+  (when (eq direction :none)
+    (error 'event-io-error
+           :message "register-io DIRECTION cannot be :none (use update-io)"))
   (let* ((ptr (foreign-alloc :uint8 :count (foreign-type-size '(:struct ev-io))))
          (eh (make-instance 'libev-handle :loop loop :ptr ptr :kind :io))
-         (events (ecase direction
-                   (:read +ev-read+)
-                   (:write +ev-write+)
-                   (:read-write (logior +ev-read+ +ev-write+)))))
+         (events (%ev-io-events direction)))
     (%ev-io-init ptr (callback %ev-io-cb) fd events)
     (%register ptr :io (list :fn callback :event-handle eh :loop loop))
     (ev-io-start (libev-loop-ptr loop) ptr)
     eh))
+
+(defmethod update-io ((backend libev-backend) (handle libev-handle) direction
+                      &key (callback nil callbackp))
+  "Change ev_io interest in place (stop → set events → start)."
+  (unless (eq (libev-handle-kind handle) :io)
+    (error 'event-io-error :message "update-io requires an io handle"
+           :handle handle))
+  (when (event-handle-canceled-p handle)
+    (error 'event-canceled :handle handle :message "update-io on canceled handle"))
+  (let* ((ptr (libev-handle-ptr handle))
+         (loop (event-handle-loop handle))
+         (entry (%lookup ptr))
+         (events (%ev-io-events direction)))
+    (unless (and (pointerp ptr) (not (null-pointer-p ptr)) entry loop)
+      (error 'event-io-error :message "update-io: io handle not registered"
+             :handle handle))
+    (when callbackp
+      (setf (getf (cdr entry) :fn) callback))
+    (ev-io-stop (libev-loop-ptr loop) ptr)
+    (unless (zerop events)
+      (setf (foreign-slot-value ptr '(:struct ev-io) 'events)
+            (logior events +ev-iofdset+))
+      (ev-io-start (libev-loop-ptr loop) ptr))
+    handle))
 
 (defmethod wake ((backend libev-backend) (loop libev-loop))
   (%ensure-loop-open loop)
