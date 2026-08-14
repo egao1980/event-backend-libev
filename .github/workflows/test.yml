@@ -43,21 +43,19 @@ jobs:
           brew install libev
           echo "HOMEBREW_PREFIX=$(brew --prefix)" >> "$GITHUB_ENV"
 
-      - name: Install Roswell
-        shell: bash
-        run: |
-          curl -sL https://raw.githubusercontent.com/roswell/roswell/master/scripts/install-for-ci.sh | bash
-          echo "$HOME/.roswell/bin" >> "$GITHUB_PATH"
+      - uses: egao1980/cl-repository/.github/actions/setup-roswell@main
+        with:
+          sbcl-version: ${{ env.SBCL_VERSION }}
+          roswell-version: ${{ env.ROSWELL_VERSION }}
 
-      - name: Install SBCL
-        shell: bash
-        run: |
-          ros install "sbcl-bin/$SBCL_VERSION"
-          ros use "sbcl-bin/$SBCL_VERSION"
-
-      - name: cl-repo deps + conformance × libev
+      - name: cl-repo install deps
         shell: bash
         run: |
           export HOMEBREW_PREFIX="${HOMEBREW_PREFIX:-/opt/homebrew}"
-          export CL_SOURCE_REGISTRY="$(pwd)//:$(pwd)/${CL_REPOSITORY_CLIENT_DIR}//:"
+          ros -l scripts/ci-install.lisp -q
+
+      - name: Test
+        shell: bash
+        run: |
+          export HOMEBREW_PREFIX="${HOMEBREW_PREFIX:-/opt/homebrew}"
           ros -l scripts/ci-test.lisp -q
