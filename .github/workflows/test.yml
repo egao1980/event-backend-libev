@@ -52,7 +52,9 @@ jobs:
       - uses: egao1980/cl-repository/.github/actions/ci@main
         with:
           phase: install
+          system: event-backend-libev
 
       - uses: egao1980/cl-repository/.github/actions/ci@main
         with:
           phase: test
+          system: event-backend-libev

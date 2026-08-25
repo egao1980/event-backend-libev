@@ -53,7 +53,7 @@
                (:role "cffi-grovel-output"
                 :files (("grovel/darwin-arm64/grovel.cffi.lisp"
                          . "grovel.cffi.lisp"))))))
-    :ci (:sources (("babel" :ql) ("trivial-features" :ql) ("cl-unicode" :ql)))))
+    :ci (:sources (("babel" :ql) ("trivial-features" :ql) ("cl-unicode" :ql))))))
 
 (defsystem "event-backend-libev/tests"
   :depends-on ("event-backend-libev" "event-protocol/conformance" "rove")
