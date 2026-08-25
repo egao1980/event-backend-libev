@@ -12,6 +12,7 @@ concurrency:
 
 env:
   SBCL_VERSION: 2.6.7
+  ROSWELL_VERSION: "26.02.116"
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
@@ -48,14 +49,12 @@ jobs:
           sbcl-version: ${{ env.SBCL_VERSION }}
           roswell-version: ${{ env.ROSWELL_VERSION }}
 
-      - name: cl-repo install deps
-        shell: bash
-        run: |
-          export HOMEBREW_PREFIX="${HOMEBREW_PREFIX:-/opt/homebrew}"
-          ros -l scripts/ci-install.lisp -q
+      - uses: egao1980/cl-repository/.github/actions/ci@main
+        with:
+          phase: install
+          system: event-backend-libev
 
-      - name: Test
-        shell: bash
-        run: |
-          export HOMEBREW_PREFIX="${HOMEBREW_PREFIX:-/opt/homebrew}"
-          ros -l scripts/ci-test.lisp -q
+      - uses: egao1980/cl-repository/.github/actions/ci@main
+        with:
+          phase: test
+          system: event-backend-libev
