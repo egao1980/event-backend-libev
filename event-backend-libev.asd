@@ -52,8 +52,7 @@
                         ("lib/darwin-arm64/libev.4.dylib" . "libev.4.dylib")))
                (:role "cffi-grovel-output"
                 :files (("grovel/darwin-arm64/grovel.cffi.lisp"
-                         . "grovel.cffi.lisp"))))))
-    :ci (:sources (("babel" :ql) ("trivial-features" :ql) ("cl-unicode" :ql))))))
+                         . "grovel.cffi.lisp")))))))))
 
 (defsystem "event-backend-libev/tests"
   :depends-on ("event-backend-libev" "event-protocol/conformance" "rove")
