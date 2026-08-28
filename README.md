@@ -16,6 +16,8 @@ ros -e '(asdf:load-asd "event-backend-libev.asd")' \
     -e '(asdf:test-system "event-backend-libev")' -q
 ```
 
+`submit` with no `:executor` uses a per-loop [`cl-stack-executors`](https://github.com/egao1980/cl-stack-executors) thread pool. Pass a function of one thunk to override.
+
 ## Overlay
 
 ```bash

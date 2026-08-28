@@ -60,11 +60,25 @@
    (wake-queue :initform nil :accessor libev-loop-wake-queue)
    (closed :initform nil :accessor libev-loop-closed-p)
    (running :initform nil :accessor libev-loop-running-p)
-   (closing :initform nil :accessor libev-loop-closing-p)))
+   (closing :initform nil :accessor libev-loop-closing-p)
+   (submit-pool :initform nil :accessor libev-loop-submit-pool)))
 
 (defclass libev-handle (event-handle)
   ((ptr :initarg :ptr :reader libev-handle-ptr)
    (kind :initarg :kind :reader libev-handle-kind)))
+
+(defun %ensure-submit-pool (loop)
+  (or (libev-loop-submit-pool loop)
+      (setf (libev-loop-submit-pool loop)
+            (make-thread-pool
+             :name (format nil "event-submit-~A"
+                           (backend-name (event-loop-backend loop)))))))
+
+(defun %shutdown-submit-pool (loop)
+  (let ((pool (libev-loop-submit-pool loop)))
+    (when pool
+      (executor-shutdown pool :wait t)
+      (setf (libev-loop-submit-pool loop) nil))))
 
 (defcallback %ev-timer-cb :void ((loop :pointer) (w :pointer) (revents :int))
   (declare (ignore loop revents))
@@ -166,7 +180,7 @@ callbacks, so off-loop calls are routed through the async wake watcher."
   (%ensure-loop-open loop)
   (if (eq loop *event-loop*)
       (ev-break (libev-loop-ptr loop) +evbreak-one+)
-      (wake-call loop
+      (wake-call backend loop
                  (lambda ()
                    (ev-break (libev-loop-ptr loop) +evbreak-one+))))
   loop)
@@ -255,9 +269,10 @@ callbacks, so off-loop calls are routed through the async wake watcher."
   (ev-async-send (libev-loop-ptr loop) (libev-loop-async loop))
   loop)
 
-(defun wake-call (loop function)
+(defmethod wake-call ((backend libev-backend) (loop libev-loop) function)
+  (%ensure-loop-open loop)
   (%push-wake-queue loop function)
-  (wake (event-loop-backend loop) loop)
+  (wake backend loop)
   loop)
 
 (defun %wait-loop-stopped (loop)
@@ -278,9 +293,10 @@ callbacks, so off-loop calls are routed through the async wake watcher."
   loop)
 
 (defun close-loop (loop)
+  (%shutdown-submit-pool loop)
   (unless (libev-loop-closed-p loop)
     (when (and (libev-loop-running-p loop) (not (eq loop *event-loop*)))
-      (wake-call loop (lambda () (close-loop loop)))
+      (wake-call (event-loop-backend loop) loop (lambda () (close-loop loop)))
       (%wait-loop-stopped loop)
       (loop while (not (libev-loop-closed-p loop))
             do #+sbcl (sb-thread:thread-yield)
