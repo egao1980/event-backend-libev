@@ -1,5 +1,9 @@
 (defpackage #:event-backend-libev
   (:use #:cl #:cffi #:event-protocol)
+  (:import-from #:cl-stack-executors
+                #:make-thread-pool
+                #:executor-runner
+                #:executor-shutdown)
   (:export #:libev-backend
            #:make-libev-backend
            #:load-libev
