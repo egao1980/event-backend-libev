@@ -43,15 +43,13 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: egao1980/cl-repository/.github/actions/setup-client@main
-
       - name: Install build deps (Linux)
         if: matrix.os == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential curl autotools-dev automake libtool pkg-config
 
-      - uses: egao1980/cl-repository/.github/actions/setup-roswell@main
+      - uses: egao1980/cl-repository/.github/actions/setup-lisp@main
         with:
           sbcl-version: ${{ env.SBCL_VERSION }}
           roswell-version: ${{ env.ROSWELL_VERSION }}
