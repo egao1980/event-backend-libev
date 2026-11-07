@@ -11,45 +11,7 @@
 (defparameter +evbreak-one+ (foreign-enum-value 'ev-break-how :one))
 (defparameter +evbreak-all+ (foreign-enum-value 'ev-break-how :all))
 
-(define-foreign-library libev
-
-  (:darwin (:or "libev.4.dylib" "libev.dylib"
-                "/opt/homebrew/lib/libev.dylib"
-                "/usr/local/lib/libev.dylib"))
-  (:unix (:or "libev.so.4" "libev.so"))
-  (t (:default "libev")))
-
-(defun %native-search-dirs ()
-  (let ((dirs '()))
-    (dolist (var '("EVENT_PROTOCOL_NATIVE" "CL_STACK_LIBEV_NATIVE"))
-      (let ((v (uiop:getenv var)))
-        (when (and v (plusp (length v)))
-          (push v dirs))))
-    (ignore-errors
-      (let* ((sys (asdf:find-system :event-backend-libev nil))
-             (root (when sys (asdf:system-source-directory sys))))
-        (when root
-          (push (namestring (merge-pathnames "native/" root)) dirs)
-          (push (namestring
-                 (merge-pathnames
-                  (format nil "lib/~A-~A/"
-                          #+darwin "darwin"
-                          #+linux "linux"
-                          #-(or darwin linux) "unknown"
-                          #+(or x86-64 x64) "amd64"
-                          #+(or arm64 aarch64) "arm64"
-                          #-(or x86-64 x64 arm64 aarch64) "unknown")
-                  root))
-                dirs))))
-    (nreverse dirs)))
-
-(defun load-libev ()
-  (dolist (dir (%native-search-dirs))
-    (when (and dir (uiop:directory-exists-p dir))
-      (pushnew dir cffi:*foreign-library-directories* :test #'equal)))
-  (unless (foreign-library-loaded-p 'libev)
-    (load-foreign-library 'libev))
-  t)
+; libev itself is loaded at ASDF load by the (:native-library "ev") component.
 
 (defcfun ("ev_loop_new" ev-loop-new) :pointer (flags :unsigned-int))
 (defcfun ("ev_loop_destroy" ev-loop-destroy) :void (loop :pointer))

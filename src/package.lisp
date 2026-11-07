@@ -6,7 +6,6 @@
                 #:executor-shutdown)
   (:export #:libev-backend
            #:make-libev-backend
-           #:load-libev
            #:wake-call
            #:close-loop
            #:libev-loop

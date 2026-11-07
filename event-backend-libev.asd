@@ -6,11 +6,11 @@
     nil)
 
 (defsystem "event-backend-libev"
-  :version "0.1.3"
+  :version "0.2.0"
   :description "libev backend for event-protocol (Unix second backend; no Windows)"
   :author "egao1980"
   :license "MIT"
-  :defsystem-depends-on ("cffi-grovel")
+  :defsystem-depends-on ("cffi-grovel" "asdf-native")
   :depends-on ("cffi" "event-protocol" "cl-stack-executors")
   :serial t
   :pathname "src"
@@ -21,11 +21,17 @@
            (cache (when root (probe-file (merge-pathnames "grovel-cache/grovel.cffi.lisp" root)))))
       (if cache
           '((:file "package")
+            ;; $EVENT_PROTOCOL_NATIVE, native/ (overlay), lib/<os>-<arch>/
+            ;; (checkout), then the system libev (CFFI's search, incl. Homebrew).
+            (:native-library "ev" :versions ("4") :env "EVENT_PROTOCOL_NATIVE" :system t
+             :if-feature (:not :windows))
             (:file "grovel-cached" :pathname "../grovel-cache/grovel.cffi")
             (:file "ffi")
             (:file "backend")
             (:file "submit"))
           '((:file "package")
+            (:native-library "ev" :versions ("4") :env "EVENT_PROTOCOL_NATIVE" :system t
+             :if-feature (:not :windows))
             (cffi-grovel:grovel-file "grovel")
             (:file "ffi")
             (:file "backend")
