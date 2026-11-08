@@ -6,7 +6,7 @@
     nil)
 
 (defsystem "event-backend-libev"
-  :version "0.2.0"
+  :version "0.2.1"
   :description "libev backend for event-protocol (Unix second backend; no Windows)"
   :author "egao1980"
   :license "MIT"
@@ -37,30 +37,21 @@
             (:file "backend")
             (:file "submit"))))
   :in-order-to ((test-op (test-op "event-backend-libev/tests")))
+  ;; Native-library overlays: lib/<os>-<arch>/ per platform, derived from the
+  ;; :native-library components. The grovel output folds into the same platform.
   :properties
   (:cl-repo
-   (:cffi-libraries ("libev")
-    :provides ("event-backend-libev")
+   (:provides ("event-backend-libev")
     :overlays
     ((:platform (:os "linux" :arch "amd64")
-      :layers ((:role "native-library"
-                :files (("lib/linux-amd64/libev.so" . "libev.so")
-                        ("lib/linux-amd64/libev.so.4" . "libev.so.4")))
-               (:role "cffi-grovel-output"
+      :layers ((:role "cffi-grovel-output"
                 :files (("grovel/linux-amd64/grovel.cffi.lisp" . "grovel.cffi.lisp")))))
      (:platform (:os "linux" :arch "arm64")
-      :layers ((:role "native-library"
-                :files (("lib/linux-arm64/libev.so" . "libev.so")
-                        ("lib/linux-arm64/libev.so.4" . "libev.so.4")))
-               (:role "cffi-grovel-output"
+      :layers ((:role "cffi-grovel-output"
                 :files (("grovel/linux-arm64/grovel.cffi.lisp" . "grovel.cffi.lisp")))))
      (:platform (:os "darwin" :arch "arm64")
-      :layers ((:role "native-library"
-                :files (("lib/darwin-arm64/libev.dylib" . "libev.dylib")
-                        ("lib/darwin-arm64/libev.4.dylib" . "libev.4.dylib")))
-               (:role "cffi-grovel-output"
-                :files (("grovel/darwin-arm64/grovel.cffi.lisp"
-                         . "grovel.cffi.lisp")))))))))
+      :layers ((:role "cffi-grovel-output"
+                :files (("grovel/darwin-arm64/grovel.cffi.lisp" . "grovel.cffi.lisp")))))))))
 
 (defsystem "event-backend-libev/tests"
   :depends-on ("event-backend-libev" "event-protocol/conformance" "rove")
