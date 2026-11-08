@@ -51,7 +51,6 @@
 (defun make-libev-backend ()
   #+windows (error 'unsupported-operation
                    :message "libev backend is Unix-only (no Windows)")
-  (load-libev)
   (make-instance 'libev-backend))
 
 (defclass libev-loop (event-loop)
@@ -140,7 +139,6 @@
           (funcall fn status))))))
 
 (defmethod make-event-loop ((backend libev-backend) &key)
-  (load-libev)
   (let* ((loop-ptr (ev-loop-new 0))
          (async-ptr (foreign-alloc :uint8
                                    :count (foreign-type-size '(:struct ev-async)))))
