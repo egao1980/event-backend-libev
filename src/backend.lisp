@@ -320,3 +320,6 @@ callbacks, so off-loop calls are routed through the async wake watcher."
         (%wait-loop-stopped loop)
         (%finalize-close-loop loop))))
   loop)
+
+(defmethod close-event-loop ((backend libev-backend) (loop libev-loop))
+  (close-loop loop))
